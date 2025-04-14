@@ -40,9 +40,13 @@ user32 = ctypes.windll.user32
 screen_width = user32.GetSystemMetrics(0)
 screen_height = user32.GetSystemMetrics(1)
 
+
 # Webcam setup
 cap = cv2.VideoCapture(0)
-
+control = True
+tapped = False
+adjusted = False
+t = 0
 # Main loop
 while cap.isOpened():
     ret, frame = cap.read()
@@ -65,31 +69,54 @@ while cap.isOpened():
             recognizer.recognize_async(mp_image, time.time_ns() // 1000000)  # Use corrected timestamp
             if recognition_result and recognition_result.gestures:  # Check if result is available
                 gesture = recognition_result.gestures[0][0].category_name
-                cv2.putText(image, gesture, (10, 70), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
+                if gesture != "Unknown" and gesture != "None":
+                    cv2.putText(image, gesture, (10, 70), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
 
-                # Hand Laterality Check
-                hand_label = results.multi_handedness[0].classification[0].label
+                    # Hand Laterality Check
+                    hand_label = results.multi_handedness[0].classification[0].label
 
-                if gesture == "Victory":
-                    x = int(hand_landmarks.landmark[
-                                mp.solutions.hands.HandLandmark.MIDDLE_FINGER_MCP].x * screen_width)
-                    y = int(hand_landmarks.landmark[
-                                mp.solutions.hands.HandLandmark.MIDDLE_FINGER_MCP].y * screen_height)
-                    pyautogui.moveTo(x, y)
-                elif gesture == "Pointing_Up":
-                    pyautogui.click(button='left')
-                elif gesture == "ILoveYou":
-                    pyautogui.click(button='right')
-                elif gesture == "Thumb_Up":
-                    if hand_label == "Right":
-                        pyautogui.press("volumeup")
-                    else:
-                        sbc.set_brightness("+1")
-                elif gesture == "Thumb_Down":
-                    if hand_label == "Right":
-                        pyautogui.press("volumedown")
-                    else:
-                        sbc.set_brightness("-1")
+                    if gesture == "Victory":
+                        if control:
+                            x = int(hand_landmarks.landmark[
+                                        mp.solutions.hands.HandLandmark.MIDDLE_FINGER_MCP].x * screen_width)
+                            y = int(hand_landmarks.landmark[
+                                        mp.solutions.hands.HandLandmark.MIDDLE_FINGER_MCP].y * screen_height)
+                            pyautogui.moveTo(x, y)
+                            control = False
+
+                    elif gesture == "Closed_Fist":
+                        if not tapped:
+                            pyautogui.click(button='left')
+                            tapped = True
+                    elif gesture == "ILoveYou":
+                        if not tapped:
+                            pyautogui.doubleClick(button='left')
+                            tapped = True
+                    elif gesture == "Pointing_Up":
+                        if not tapped:
+                            pyautogui.click(button='right')
+                            tapped = True
+                    elif gesture == "Thumb_Up":
+                        if not adjusted:
+                            if hand_label == "Right":
+                                pyautogui.press("volumeup")
+                            else:
+                                sbc.set_brightness("+1")
+                            adjusted = True
+                    elif gesture == "Thumb_Down":
+                        if not adjusted:
+                            if hand_label == "Right":
+                                pyautogui.press("volumedown")
+                            else:
+                                sbc.set_brightness("-1")
+                            adjusted = True
+
+    t = time.time_ns() // 1000000
+    if t % 100 <= 15:
+        tapped = False
+    if t % 50 <= 10:
+        control = True
+        adjusted = False
 
     # Convert the image back to BGR.
     image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
@@ -100,3 +127,4 @@ while cap.isOpened():
 
 cap.release()
 cv2.destroyAllWindows()
+
